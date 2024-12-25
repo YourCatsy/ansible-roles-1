@@ -1,0 +1,5 @@
+[server]
+web ansible_host=localhost
+
+[db]
+db ansible_host=localhost

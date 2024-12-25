@@ -1,0 +1,44 @@
+---
+- name: Install Apache and PHP
+  apt:
+    name: 
+      - apache2
+      - libapache2-mod-php
+      - php
+      - php-pgsql
+    state: present
+    update_cache: yes
+
+- name: Clone application repository
+  git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_directory }}"
+    update: yes
+
+- name: Set permissions for application
+  file:
+    path: "{{ app_directory }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    state: directory
+    recurse: yes
+
+- name: Configure Apache virtual host
+  template:
+    src: apache.j2
+    dest: "{{ apache_conf }}"
+  notify: Restart Apache
+
+- name: Enable site and disable default
+  command: a2ensite "{{ app_name }}.conf"
+  notify: Restart Apache
+
+- name: Ensure default site is disabled
+  command: a2dissite 000-default.conf
+  notify: Restart Apache
+
+- name: Ensure Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes
