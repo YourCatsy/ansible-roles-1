@@ -73,3 +73,4 @@ jobs:
         run: |
           sudo apt-get install postgresql-client -y
           PGPASSWORD=$DB_PASS psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c '\d' | grep users
+          
