@@ -1,0 +1,7 @@
+db_host: localhost
+db_name: my_database
+db_user: my_user
+db_pass: my_password
+login_user: root
+login_pass: root_password
+root_pass: root_password

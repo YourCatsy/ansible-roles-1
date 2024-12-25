@@ -3,20 +3,16 @@
   ansible.builtin.debug:
     msg: "Create task to deploy DB server and App server with Laravel"
 
-- name: Add php repository
+- name: Add PHP repository
   ansible.builtin.apt_repository:
     repo: ppa:ondrej/php
     state: present
 
-- name: Install Node.js and dependencies
+- name: Install PHP, Apache, and Node.js
   ansible.builtin.apt:
     name:
       - apache2
       - nodejs
-
-- name: Installation of PHP8 and its dependencies
-  ansible.builtin.apt:
-    name:
       - php8.2
       - php8.2-cli
       - php8.2-curl
@@ -30,54 +26,38 @@
   ansible.builtin.get_url:
     url: https://getcomposer.org/download/latest-stable/composer.phar
     dest: /usr/local/bin/composer
-    mode: 0755
+    mode: '0755'
 
-- name: Clone application repository
+- name: Clone the application repository
   ansible.builtin.git:
     repo: "{{ app_repo }}"
-    dest: ./devops_pract
-    clone: yes
+    dest: /tmp/app
     update: yes
-  become: false
 
-- name: Copy project to server
+- name: Copy application to server path
   ansible.builtin.copy:
-    src: ./devops_pract/
+    src: /tmp/app/
     dest: "{{ app_path }}"
-    remote_src: true
+    remote_src: yes
 
-- name: Install dependencies from composer.json
+- name: Install application dependencies with Composer
   ansible.builtin.composer:
     command: install
     working_dir: "{{ app_path }}"
   environment:
     COMPOSER_ALLOW_SUPERUSER: 1
 
-- name: Write application config file
+- name: Configure application environment
   ansible.builtin.template:
     src: app.conf.j2
     dest: "{{ app_path }}/.env"
 
-- name: Generate artisan key
-  ansible.builtin.command:
-    cmd: php artisan key:generate
-  args:
-    chdir: "{{ app_path }}"
-
-- name: Set permissions for user www-data
-  ansible.builtin.file:
-    path: "{{ app_path }}"
-    owner: "{{ apache_user }}"
-    group: "{{ apache_user }}"
-    mode: 0755
-    recurse: yes
-
-- name: Enable the Apache2 module mod_rewrite
+- name: Enable Apache modules
   community.general.apache2_module:
     state: present
     name: rewrite
 
-- name: Configure Apache for the application
+- name: Configure Apache
   ansible.builtin.template:
     src: apache.conf.j2
     dest: /etc/apache2/sites-available/app.conf
