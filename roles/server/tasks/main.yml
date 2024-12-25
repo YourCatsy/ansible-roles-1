@@ -1,44 +1,88 @@
 ---
-- name: Install Apache and PHP
-  apt:
-    name: 
-      - apache2
-      - libapache2-mod-php
-      - php
-      - php-pgsql
+- name: Start message
+  ansible.builtin.debug:
+    msg: "Create task to deploy DB server and App server with Laravel"
+
+- name: Add php repository
+  ansible.builtin.apt_repository:
+    repo: ppa:ondrej/php
     state: present
-    update_cache: yes
+
+- name: Install Node.js and dependencies
+  ansible.builtin.apt:
+    name:
+      - apache2
+      - nodejs
+
+- name: Installation of PHP8 and its dependencies
+  ansible.builtin.apt:
+    name:
+      - php8.2
+      - php8.2-cli
+      - php8.2-curl
+      - php8.2-bz2
+      - php8.2-mbstring
+      - php8.2-intl
+      - php8.2-xml
+      - php8.2-mysql
+
+- name: Install Composer
+  ansible.builtin.get_url:
+    url: https://getcomposer.org/download/latest-stable/composer.phar
+    dest: /usr/local/bin/composer
+    mode: 0755
 
 - name: Clone application repository
-  git:
+  ansible.builtin.git:
     repo: "{{ app_repo }}"
-    dest: "{{ app_directory }}"
+    dest: ./devops_pract
+    clone: yes
     update: yes
+  become: false
 
-- name: Set permissions for application
-  file:
-    path: "{{ app_directory }}"
-    owner: "{{ app_user }}"
-    group: "{{ app_group }}"
-    state: directory
+- name: Copy project to server
+  ansible.builtin.copy:
+    src: ./devops_pract/
+    dest: "{{ app_path }}"
+    remote_src: true
+
+- name: Install dependencies from composer.json
+  ansible.builtin.composer:
+    command: install
+    working_dir: "{{ app_path }}"
+  environment:
+    COMPOSER_ALLOW_SUPERUSER: 1
+
+- name: Write application config file
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: "{{ app_path }}/.env"
+
+- name: Generate artisan key
+  ansible.builtin.command:
+    cmd: php artisan key:generate
+  args:
+    chdir: "{{ app_path }}"
+
+- name: Set permissions for user www-data
+  ansible.builtin.file:
+    path: "{{ app_path }}"
+    owner: "{{ apache_user }}"
+    group: "{{ apache_user }}"
+    mode: 0755
     recurse: yes
 
-- name: Configure Apache virtual host
-  template:
-    src: apache.j2
-    dest: "{{ apache_conf }}"
-  notify: Restart Apache
+- name: Enable the Apache2 module mod_rewrite
+  community.general.apache2_module:
+    state: present
+    name: rewrite
 
-- name: Enable site and disable default
-  command: a2ensite "{{ app_name }}.conf"
-  notify: Restart Apache
+- name: Configure Apache for the application
+  ansible.builtin.template:
+    src: apache.conf.j2
+    dest: /etc/apache2/sites-available/app.conf
 
-- name: Ensure default site is disabled
-  command: a2dissite 000-default.conf
+- name: Enable application site
+  ansible.builtin.command:
+    cmd: a2ensite app
   notify: Restart Apache
-
-- name: Ensure Apache is running
-  service:
-    name: apache2
-    state: started
-    enabled: yes

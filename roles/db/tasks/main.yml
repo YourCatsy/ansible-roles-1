@@ -1,51 +1,50 @@
 ---
-- name: Install PostgreSQL
-  apt:
-    name: 
-      - postgresql
-    state: present
+- name: Start message
+  ansible.builtin.debug:
+    msg: 'Create task to install and preparing DB server'
+
+- name: Install MariaDB
+  ansible.builtin.apt:
+    name:
+      - mariadb-server
+      - python3-pymysql
     update_cache: yes
 
-- name: Install Python PostgreSQL library
-  apt:
-    name: python3-psycopg2
-    state: present
-    update_cache: yes
-
-- name: Ensure PostgreSQL is running
-  service:
-    name: postgresql
+- name: Start MariaDB
+  ansible.builtin.service:
+    name: mysql
     state: started
     enabled: yes
 
-- name: Allow password authentication for PostgreSQL
-  lineinfile:
-    path: /etc/postgresql/12/main/pg_hba.conf
-    regexp: "^local[[:space:]]+all[[:space:]]+postgres[[:space:]]+peer"
-    line: "local   all             postgres                                md5"
-    state: present
-  notify: Restart PostgreSQL
+- name: Set new password for root user
+  ansible.builtin.mysql_user:
+    name: "{{ login_user }}"
+    password: "{{ login_pass }}"
+    login_user: "{{ login_user }}"
+    login_password: "{{ root_pass }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    check_implicit_admin: yes
 
-- name: Create database
-  postgresql_db:
+- name: Create a new MariaDB database
+  ansible.builtin.mysql_db:
+    login_user: "{{ login_user }}"
+    login_password: "{{ login_pass }}"      
     name: "{{ db_name }}"
     state: present
+    encoding: utf8
 
-- name: Create database user
-  postgresql_user:
-    name: "{{ db_user }}"
-    password: "{{ db_pass }}"
-    priv: "{{ db_name }}:ALL"
+- name: Create user for app
+  ansible.builtin.mysql_user:
+     login_user: "{{ login_user }}"
+     login_password: "{{ login_pass }}"
+     name: "{{ db_user }}"
+     password: "{{ db_pass }}"
+     host: '%'
+     priv: "{{ db_name }}.*:ALL"
+     state: present
 
-- name: Allow remote connections to PostgreSQL
-  lineinfile:
-    path: /etc/postgresql/12/main/pg_hba.conf
-    line: "host    all             all             0.0.0.0/0            md5"
-    state: present
-
-- name: Configure PostgreSQL to listen on all interfaces
-  lineinfile:
-    path: /etc/postgresql/12/main/postgresql.conf
-    regexp: "^#?listen_addresses"
-    line: "listen_addresses = '*'"
-  notify: Restart PostgreSQL
+- name: Add custom config 
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /etc/mysql/my.cnf
+  notify: Restart MariaDB
