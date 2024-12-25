@@ -18,6 +18,14 @@
     state: started
     enabled: yes
 
+- name: Allow password authentication for PostgreSQL
+  lineinfile:
+    path: /etc/postgresql/12/main/pg_hba.conf
+    regexp: "^local\s+all\s+postgres\s+peer"
+    line: "local   all             postgres                                md5"
+    state: present
+  notify: Restart PostgreSQL
+
 - name: Create database
   postgresql_db:
     name: "{{ db_name }}"
